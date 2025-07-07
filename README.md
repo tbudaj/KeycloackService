@@ -24,18 +24,6 @@ Complete .NET library for managing Keycloak tokens with automatic refresh and su
 | **Authorization Code + PKCE** | Mobile/SPA          | Najwyższe      | ✅            |
 | **Device Flow**               | IoT/CLI/Smart TV    | Wysokie        | ✅            |
 
-## 🛠️ Installation
-
-### Package Manager
-```powershell
-Install-Package KeycloakService
-```
-
-### .NET CLI
-```bash
-dotnet add package KeycloakService
-```
-
 ### PackageReference
 ```xml
 <PackageReference Include="KeycloakService" Version="1.0.0" />
@@ -606,20 +594,6 @@ Complete guide for integrating KeycloakService with RabbitMQ for message queue a
 - **RabbitMQ Server** with JWT Authentication plugin enabled
 - **Keycloak Server** with properly configured client
 - **.NET 8** or newer
-
-## Installation
-
-### Package Manager
-```powershell
-Install-Package KeycloakService
-Install-Package RabbitMQ.Client
-```
-
-### .NET CLI
-```bash
-dotnet add package KeycloakService
-dotnet add package RabbitMQ.Client
-```
 
 ## RabbitMQ Configuration
 
