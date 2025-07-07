@@ -12,4 +12,9 @@ public record KeycloakConfig
     public string? Username { get; init; }
     public string? Password { get; init; }
     public TimeSpan? TokenRefreshBuffer { get; init; } = TimeSpan.FromMinutes(5);
+    
+    /// <summary>
+    /// Authentication flow to use. Defaults to Password flow for backward compatibility.
+    /// </summary>
+    public AuthenticationFlow Flow { get; init; } = AuthenticationFlow.Password;
 }

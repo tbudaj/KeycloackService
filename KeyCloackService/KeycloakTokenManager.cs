@@ -51,8 +51,8 @@ public class KeycloakTokenManager : IDisposable
                 return _currentToken.AccessToken;
             }
 
-            // Try to refresh first if we have a refresh token
-            if (_currentToken?.RefreshToken is not null)
+            // Try to refresh first if we have a refresh token (only for Password flow)
+            if (_currentToken?.RefreshToken is not null && _config.Flow == AuthenticationFlow.Password)
             {
                 try
                 {
@@ -66,7 +66,7 @@ public class KeycloakTokenManager : IDisposable
                 }
             }
 
-            // Token expired or doesn't exist, get new one
+            // Token expired or doesn't exist, get new one using configured flow
             var token = await AuthenticateAsync(cancellationToken);
             return token.AccessToken;
         }
@@ -77,13 +77,26 @@ public class KeycloakTokenManager : IDisposable
     }
 
     /// <summary>
-    /// Authenticates with Keycloak using username/password flow
+    /// Authenticates with Keycloak using the configured authentication flow
     /// </summary>
     public async Task<KeycloakTokenResponse> AuthenticateAsync(CancellationToken cancellationToken = default)
     {
+        return _config.Flow switch
+        {
+            AuthenticationFlow.Password => await AuthenticateWithPasswordAsync(cancellationToken),
+            AuthenticationFlow.ClientCredentials => await AuthenticateWithClientCredentialsAsync(cancellationToken),
+            _ => throw new KeycloakAuthenticationException($"Unsupported authentication flow: {_config.Flow}")
+        };
+    }
+
+    /// <summary>
+    /// Authenticates with Keycloak using username/password flow
+    /// </summary>
+    private async Task<KeycloakTokenResponse> AuthenticateWithPasswordAsync(CancellationToken cancellationToken = default)
+    {
         if (string.IsNullOrEmpty(_config.Username) || string.IsNullOrEmpty(_config.Password))
         {
-            throw new KeycloakAuthenticationException("Username and password are required for authentication");
+            throw new KeycloakAuthenticationException("Username and password are required for password flow authentication");
         }
 
         var tokenEndpoint = $"{_config.ServerUrl}/realms/{_config.Realm}/protocol/openid-connect/token";
@@ -102,6 +115,38 @@ public class KeycloakTokenManager : IDisposable
             parameters.Add(new("client_secret", _config.ClientSecret));
         }
 
+        return await ExecuteTokenRequestAsync(parameters, "Password flow authentication", cancellationToken);
+    }
+
+    /// <summary>
+    /// Authenticates with Keycloak using client credentials flow
+    /// </summary>
+    private async Task<KeycloakTokenResponse> AuthenticateWithClientCredentialsAsync(CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(_config.ClientSecret))
+        {
+            throw new KeycloakAuthenticationException("ClientSecret is required for client credentials flow authentication");
+        }
+
+        var parameters = new List<KeyValuePair<string, string>>
+        {
+            new("grant_type", "client_credentials"),
+            new("client_id", _config.ClientId),
+            new("client_secret", _config.ClientSecret)
+        };
+
+        return await ExecuteTokenRequestAsync(parameters, "Client credentials flow authentication", cancellationToken);
+    }
+
+    /// <summary>
+    /// Executes token request with common error handling and caching logic
+    /// </summary>
+    private async Task<KeycloakTokenResponse> ExecuteTokenRequestAsync(
+        List<KeyValuePair<string, string>> parameters,
+        string operationName,
+        CancellationToken cancellationToken)
+    {
+        var tokenEndpoint = $"{_config.ServerUrl}/realms/{_config.Realm}/protocol/openid-connect/token";
         var content = new FormUrlEncodedContent(parameters);
 
         try
@@ -112,7 +157,7 @@ public class KeycloakTokenManager : IDisposable
             {
                 var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
                 throw new KeycloakAuthenticationException(
-                    $"Authentication failed with status {response.StatusCode}: {errorContent}");
+                    $"{operationName} failed with status {response.StatusCode}: {errorContent}");
             }
 
             var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -120,7 +165,7 @@ public class KeycloakTokenManager : IDisposable
 
             if (tokenResponse is null)
             {
-                throw new KeycloakAuthenticationException("Failed to deserialize token response");
+                throw new KeycloakAuthenticationException($"Failed to deserialize {operationName.ToLower()} response");
             }
 
             // Update internal token cache
@@ -140,26 +185,29 @@ public class KeycloakTokenManager : IDisposable
         }
         catch (HttpRequestException ex)
         {
-            var authException = new KeycloakAuthenticationException($"Authentication failed: {ex.Message}", ex);
+            var authException = new KeycloakAuthenticationException($"{operationName} failed: {ex.Message}", ex);
             AuthenticationFailed?.Invoke(this, authException);
             throw authException;
         }
         catch (JsonException ex)
         {
-            var authException = new KeycloakAuthenticationException($"Failed to parse authentication response: {ex.Message}", ex);
+            var authException = new KeycloakAuthenticationException($"Failed to parse {operationName.ToLower()} response: {ex.Message}", ex);
             AuthenticationFailed?.Invoke(this, authException);
             throw authException;
         }
     }
 
     /// <summary>
-    /// Refreshes access token using refresh token
+    /// Refreshes access token using refresh token (only available for Password flow)
     /// </summary>
     public async Task<KeycloakTokenResponse> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(refreshToken);
 
-        var tokenEndpoint = $"{_config.ServerUrl}/realms/{_config.Realm}/protocol/openid-connect/token";
+        if (_config.Flow != AuthenticationFlow.Password)
+        {
+            throw new KeycloakAuthenticationException($"Token refresh is not available for {_config.Flow} flow");
+        }
 
         var parameters = new List<KeyValuePair<string, string>>
         {
@@ -173,48 +221,7 @@ public class KeycloakTokenManager : IDisposable
             parameters.Add(new("client_secret", _config.ClientSecret));
         }
 
-        var content = new FormUrlEncodedContent(parameters);
-
-        try
-        {
-            var response = await _httpClient.PostAsync(tokenEndpoint, content, cancellationToken);
-            
-            if (!response.IsSuccessStatusCode)
-            {
-                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
-                throw new KeycloakAuthenticationException(
-                    $"Token refresh failed with status {response.StatusCode}: {errorContent}");
-            }
-
-            var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
-            var tokenResponse = JsonSerializer.Deserialize<KeycloakTokenResponse>(responseContent);
-
-            if (tokenResponse is null)
-            {
-                throw new KeycloakAuthenticationException("Failed to deserialize token response");
-            }
-
-            // Update internal token cache
-            await _semaphore.WaitAsync(cancellationToken);
-            try
-            {
-                _currentToken = tokenResponse;
-                _tokenExpiryTime = DateTimeOffset.UtcNow.AddSeconds(tokenResponse.ExpiresIn);
-            }
-            finally
-            {
-                _semaphore.Release();
-            }
-
-            TokenRefreshed?.Invoke(this, tokenResponse);
-            return tokenResponse;
-        }
-        catch (HttpRequestException ex)
-        {
-            var authException = new KeycloakAuthenticationException($"Token refresh failed: {ex.Message}", ex);
-            AuthenticationFailed?.Invoke(this, authException);
-            throw authException;
-        }
+        return await ExecuteTokenRequestAsync(parameters, "Token refresh", cancellationToken);
     }
 
     /// <summary>
@@ -272,10 +279,17 @@ public class KeycloakTokenManager : IDisposable
     }
 
     /// <summary>
-    /// Logs out user and invalidates tokens
+    /// Logs out user and invalidates tokens (for Password flow only)
     /// </summary>
     public async Task LogoutAsync(string? refreshToken = null, CancellationToken cancellationToken = default)
     {
+        if (_config.Flow != AuthenticationFlow.Password)
+        {
+            // For Client Credentials flow, just clear local tokens
+            ClearTokens();
+            return;
+        }
+
         var tokenToUse = refreshToken ?? _currentToken?.RefreshToken;
         
         if (string.IsNullOrEmpty(tokenToUse))
@@ -392,6 +406,24 @@ public class KeycloakTokenManager : IDisposable
         if (!Uri.TryCreate(_config.ServerUrl, UriKind.Absolute, out _))
         {
             throw new ArgumentException("ServerUrl must be a valid absolute URI", nameof(_config.ServerUrl));
+        }
+
+        // Validate flow-specific requirements
+        switch (_config.Flow)
+        {
+            case AuthenticationFlow.Password:
+                // Username and password will be validated at authentication time
+                break;
+                
+            case AuthenticationFlow.ClientCredentials:
+                if (string.IsNullOrEmpty(_config.ClientSecret))
+                {
+                    throw new ArgumentException("ClientSecret is required for ClientCredentials flow", nameof(_config.ClientSecret));
+                }
+                break;
+                
+            default:
+                throw new ArgumentException($"Unsupported authentication flow: {_config.Flow}", nameof(_config.Flow));
         }
     }
 
