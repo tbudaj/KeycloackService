@@ -24,10 +24,6 @@ Complete .NET library for managing Keycloak tokens with automatic refresh and su
 | **Authorization Code + PKCE** | Mobile/SPA          | Najwyższe      | ✅            |
 | **Device Flow**               | IoT/CLI/Smart TV    | Wysokie        | ✅            |
 
-### PackageReference
-```xml
-<PackageReference Include="KeycloakService" Version="1.0.0" />
-```
 
 ## 📚 Quick Start
 
