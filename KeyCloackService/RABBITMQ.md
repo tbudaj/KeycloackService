@@ -2,23 +2,23 @@
 
 Kompletny przewodnik po integracji KeycloakService z RabbitMQ dla autoryzacji kolejek wiadomoœci.
 
-## ?? Funkcjonalnoœci RabbitMQ
+## Funkcjonalnoœci RabbitMQ
 
-- ? **Autoryzacja JWT** - u¿ywa tokenów Keycloak do autoryzacji RabbitMQ
-- ?? **Automatyczne odœwie¿anie po³¹czeñ** - podczas odœwie¿ania tokenów
-- ??? **Thread-safe operations** - bezpieczne operacje wielow¹tkowe
-- ? **Asynchroniczne API** - wszystkie operacje async/await
-- ?? **Publikowanie i konsumowanie** - kompletne API dla wiadomoœci
-- ??? **Zarz¹dzanie topologi¹** - queues, exchanges, bindings
-- ?? **Dependency Injection** - pe³na integracja z ASP.NET Core
+- **Autoryzacja JWT** - u¿ywa tokenów Keycloak do autoryzacji RabbitMQ
+- **Automatyczne odœwie¿anie po³¹czeñ** - podczas odœwie¿ania tokenów
+- **Thread-safe operations** - bezpieczne operacje wielow¹tkowe
+- **Asynchroniczne API** - wszystkie operacje async/await
+- **Publikowanie i konsumowanie** - kompletne API dla wiadomoœci
+- **Zarz¹dzanie topologi¹** - queues, exchanges, bindings
+- **Dependency Injection** - pe³na integracja z ASP.NET Core
 
-## ?? Wymagania
+## Wymagania
 
 - **RabbitMQ Server** z w³¹czonym pluginem JWT Authentication
 - **Keycloak Server** z poprawnie skonfigurowanym klientem
 - **.NET 8** lub nowszy
 
-## ?? Instalacja
+## Instalacja
 
 ### Package Manager
 ```powershell
@@ -32,7 +32,7 @@ dotnet add package KeycloakService
 dotnet add package RabbitMQ.Client
 ```
 
-## ?? Konfiguracja RabbitMQ
+## Konfiguracja RabbitMQ
 
 ### W³¹czenie JWT Authentication w RabbitMQ
 
@@ -63,7 +63,7 @@ sudo systemctl restart rabbitmq-server
 2. **Skonfiguruj uprawnienia** (scopes/roles) dla kolejek RabbitMQ
 3. **Dodaj mappers** do tokenów (np. audience mapper)
 
-## ?? Podstawowe u¿ycie
+## Podstawowe u¿ycie
 
 ### 1. Konfiguracja appsettings.json
 
@@ -197,7 +197,7 @@ public class OrderProcessor : BackgroundService
 }
 ```
 
-## ?? Zaawansowane scenariusze
+## Zaawansowane scenariusze
 
 ### Mikroservice z wieloma kolejkami
 
@@ -390,7 +390,7 @@ public class ResilientOrderProcessor
 }
 ```
 
-## ?? Bezpieczeñstwo
+## Bezpieczeñstwo
 
 ### Minimalne uprawnienia w Keycloak
 
@@ -422,7 +422,7 @@ services.AddKeycloakRabbitMQ(
     });
 ```
 
-## ?? Testowanie
+## Testowanie
 
 ### Unit tests z mock
 
@@ -476,7 +476,7 @@ public async Task IntegrationTest_WithRealRabbitMQ()
 }
 ```
 
-## ?? Monitoring i diagnostyka
+## Monitoring i diagnostyka
 
 ### Metryki z Prometheus
 
@@ -539,7 +539,7 @@ builder.Services.AddHealthChecks()
     .AddCheck<RabbitMQHealthCheck>("rabbitmq");
 ```
 
-## ?? Troubleshooting
+## Troubleshooting
 
 ### Czêste problemy
 
@@ -565,7 +565,7 @@ tokenManager.TokenRefreshed += (sender, token) =>
     logger.LogInformation("Token odœwie¿ony: {ExpiresIn}s", token.ExpiresIn);
 ```
 
-## ?? Dodatkowe zasoby
+## Dodatkowe zasoby
 
 - [RabbitMQ OAuth2 Plugin Documentation](https://github.com/rabbitmq/rabbitmq-oauth2-tutorial)
 - [Keycloak Token Exchange](https://www.keycloak.org/docs/latest/server_admin/#_token-exchange)
