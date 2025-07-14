@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  # Keycloak Server
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: keycloak-demo
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: dev-file
+    ports:
+      - "8080:8080"
+    command: start-dev
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+    networks:
+      - demo-network
+
+  # RabbitMQ with JWT Authentication
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: rabbitmq-demo
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+    ports:
+      - "5672:5672"     # AMQP port
+      - "15672:15672"   # Management UI
+    volumes:
+      - ./docker/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - rabbitmq_data:/var/lib/rabbitmq
+    depends_on:
+      - keycloak
+    networks:
+      - demo-network
+    # Enable JWT plugin
+    command: >
+      bash -c "
+        rabbitmq-plugins enable rabbitmq_auth_backend_oauth2 &&
+        rabbitmq-server
+      "
+
+volumes:
+  keycloak_data:
+  rabbitmq_data:
+
+networks:
+  demo-network:
+    driver: bridge

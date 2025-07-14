@@ -387,17 +387,9 @@ public class KeycloakTokenManager : IDisposable
                 throw new KeycloakAuthenticationException($"Failed to deserialize {operationName.ToLower()} response");
             }
 
-            // Update internal token cache
-            await _semaphore.WaitAsync(cancellationToken);
-            try
-            {
-                _currentToken = tokenResponse;
-                _tokenExpiryTime = DateTimeOffset.UtcNow.AddSeconds(tokenResponse.ExpiresIn);
-            }
-            finally
-            {
-                _semaphore.Release();
-            }
+            // Update internal token cache - NO SEMAPHORE HERE as caller already holds it
+            _currentToken = tokenResponse;
+            _tokenExpiryTime = DateTimeOffset.UtcNow.AddSeconds(tokenResponse.ExpiresIn);
 
             TokenRefreshed?.Invoke(this, tokenResponse);
             return tokenResponse;

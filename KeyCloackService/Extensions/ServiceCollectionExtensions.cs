@@ -52,12 +52,12 @@ public static class ServiceCollectionExtensions
             return config;
         });
 
-        // Register Keycloak token manager
-        services.AddScoped<KeycloakTokenManager>();
+        // Register Keycloak token manager as Singleton - needed for startup initialization
+        services.AddSingleton<KeycloakTokenManager>();
 
-        // Register RabbitMQ services
-        services.AddScoped<KeycloakRabbitMQConnectionFactory>();
-        services.AddScoped<KeycloakRabbitMQService>();
+        // Register RabbitMQ services as Singleton - needed for startup initialization
+        services.AddSingleton<KeycloakRabbitMQConnectionFactory>();
+        services.AddSingleton<KeycloakRabbitMQService>();
 
         return services;
     }
@@ -78,12 +78,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(keycloakConfig);
         services.AddSingleton(rabbitMQConfig);
 
-        // Register Keycloak token manager
-        services.AddScoped<KeycloakTokenManager>();
+        // Register Keycloak token manager as Singleton
+        services.AddSingleton<KeycloakTokenManager>();
 
-        // Register RabbitMQ services
-        services.AddScoped<KeycloakRabbitMQConnectionFactory>();
-        services.AddScoped<KeycloakRabbitMQService>();
+        // Register RabbitMQ services as Singleton
+        services.AddSingleton<KeycloakRabbitMQConnectionFactory>();
+        services.AddSingleton<KeycloakRabbitMQService>();
 
         return services;
     }
@@ -121,12 +121,12 @@ public static class ServiceCollectionExtensions
             return config;
         });
 
-        // Register Keycloak token manager
-        services.AddScoped<KeycloakTokenManager>();
+        // Register Keycloak token manager as Singleton
+        services.AddSingleton<KeycloakTokenManager>();
 
-        // Register RabbitMQ services
-        services.AddScoped<KeycloakRabbitMQConnectionFactory>();
-        services.AddScoped<KeycloakRabbitMQService>();
+        // Register RabbitMQ services as Singleton
+        services.AddSingleton<KeycloakRabbitMQConnectionFactory>();
+        services.AddSingleton<KeycloakRabbitMQService>();
 
         return services;
     }

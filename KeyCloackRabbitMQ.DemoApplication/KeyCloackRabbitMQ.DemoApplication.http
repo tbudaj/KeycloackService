@@ -1,0 +1,6 @@
+@KeyCloackRabbitMQ.DemoApplication_HostAddress = http://localhost:5156
+
+GET {{KeyCloackRabbitMQ.DemoApplication_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
