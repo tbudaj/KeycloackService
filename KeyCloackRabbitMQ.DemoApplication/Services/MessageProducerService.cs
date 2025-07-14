@@ -101,4 +101,21 @@ public class MessageProducerService
 
         _logger.LogInformation("Notification sent: {Title} to {Recipient}", title, recipient);
     }
+
+    /// <summary>
+    /// Send a test message directly to queue (bypassing exchange) for debugging
+    /// </summary>
+    public async Task SendTestMessageDirectAsync(TestMessage message)
+    {
+        // Ensure queue exists
+        await _rabbitService.DeclareQueueAsync("demo.messages", durable: true);
+
+        // Send directly to queue using default exchange (empty string)
+        await _rabbitService.PublishAsync(
+            exchange: "",  // Default exchange - routes directly to queue
+            routingKey: "demo.messages",  // Queue name as routing key
+            message: message);
+
+        _logger.LogInformation("?? Test message sent DIRECTLY to queue: {MessageId} - {Content}", message.Id, message.Content);
+    }
 }

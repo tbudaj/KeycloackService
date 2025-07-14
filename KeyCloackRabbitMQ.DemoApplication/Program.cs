@@ -1,5 +1,8 @@
 using KeyCloackService.Extensions;
 using KeyCloackRabbitMQ.DemoApplication.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,20 +11,83 @@ Console.WriteLine("?? Building application...");
 // Add services to the container
 builder.Services.AddControllers();
 
-// Add Swagger/OpenAPI
+// Add Swagger/OpenAPI with JWT support
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { 
         Title = "KeyCloak RabbitMQ Demo API", 
         Version = "v1",
-        Description = "Demo application showcasing KeyCloak Service with RabbitMQ integration"
+        Description = "Demo application showcasing KeyCloak Service with RabbitMQ integration and JWT authentication"
+    });
+    
+    // Add JWT authentication to Swagger
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+    
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
     });
 });
 
 // Add logging first
 builder.Logging.AddConsole();
 builder.Logging.SetMinimumLevel(LogLevel.Information);
+
+// Add HttpClient for auth operations
+builder.Services.AddHttpClient();
+
+// Configure JWT Authentication
+var jwtSection = builder.Configuration.GetSection("JwtAuthentication");
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = jwtSection["Authority"];
+        options.Audience = jwtSection["Audience"];
+        options.RequireHttpsMetadata = jwtSection.GetValue<bool>("RequireHttpsMetadata");
+        
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = jwtSection.GetValue<bool>("ValidateIssuer"),
+            ValidateAudience = jwtSection.GetValue<bool>("ValidateAudience"),
+            ValidateLifetime = jwtSection.GetValue<bool>("ValidateLifetime"),
+            ClockSkew = TimeSpan.Parse(jwtSection["ClockSkew"] ?? "00:05:00"),
+            RoleClaimType = "realm_access.roles"
+        };
+        
+        options.Events = new JwtBearerEvents
+        {
+            OnAuthenticationFailed = context =>
+            {
+                Console.WriteLine($"?? JWT Authentication failed: {context.Exception.Message}");
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = context =>
+            {
+                Console.WriteLine($"?? JWT Token validated for user: {context.Principal?.Identity?.Name ?? "Unknown"}");
+                return Task.CompletedTask;
+            }
+        };
+    });
+
+builder.Services.AddAuthorization();
 
 try
 {
@@ -65,7 +131,10 @@ if (app.Environment.IsDevelopment())
     app.Logger.LogInformation("?? Running in Development mode");
 }
 
+// Add authentication and authorization middleware
+app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
 
 // Add simple test endpoints
@@ -109,6 +178,7 @@ app.Logger.LogInformation("   Ping test: {Url}/ping", httpUrl);
 app.Logger.LogInformation("   Controller test: {Url}/api/test", httpUrl);
 app.Logger.LogInformation("?? Swagger UI: {Url}", httpUrl);
 app.Logger.LogInformation("?? Health checks: {Url}/api/health", httpUrl);
+app.Logger.LogInformation("?? Secured endpoints: {Url}/api/secure-messages/*", httpUrl);
 
 try
 {

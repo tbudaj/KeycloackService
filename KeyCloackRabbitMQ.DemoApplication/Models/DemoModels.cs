@@ -88,3 +88,36 @@ public class SendMessageRequest
     public string? QueueName { get; set; }
     public Dictionary<string, object> Metadata { get; set; } = new();
 }
+
+/// <summary>
+/// JWT token request model
+/// </summary>
+public class TokenRequest
+{
+    public string Username { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+    public string? Scope { get; set; }
+}
+
+/// <summary>
+/// JWT refresh token request model
+/// </summary>
+public class RefreshTokenRequest
+{
+    public string RefreshToken { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// User authentication result
+/// </summary>
+public class AuthResult
+{
+    public bool Success { get; set; }
+    public string? AccessToken { get; set; }
+    public string? RefreshToken { get; set; }
+    public string? TokenType { get; set; }
+    public int ExpiresIn { get; set; }
+    public DateTime IssuedAt { get; set; }
+    public DateTime ExpiresAt { get; set; }
+    public string? ErrorMessage { get; set; }
+}

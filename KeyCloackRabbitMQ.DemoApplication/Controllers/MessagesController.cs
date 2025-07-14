@@ -136,4 +136,101 @@ public class MessagesController : ControllerBase
             return StatusCode(500, ApiResponse<List<TestMessage>>.ErrorResponse($"Failed to send bulk messages: {ex.Message}"));
         }
     }
+
+    /// <summary>
+    /// Get debug information about message queues
+    /// </summary>
+    [HttpGet("debug")]
+    public async Task<ActionResult<ApiResponse<object>>> GetDebugInfo()
+    {
+        try
+        {
+            var debugInfo = new
+            {
+                Message = "Debug information for message processing",
+                Timestamp = DateTime.UtcNow,
+                Instructions = new[]
+                {
+                    "1. Check if consumers are registered",
+                    "2. Verify RabbitMQ queue states",
+                    "3. Test direct queue publishing",
+                    "4. Check application logs for errors"
+                },
+                TestCommands = new
+                {
+                    DirectPublish = "Will publish directly to queue instead of exchange",
+                    QueueStatus = "Check RabbitMQ Management UI for queue details"
+                }
+            };
+
+            return Ok(ApiResponse<object>.SuccessResponse(debugInfo, "Debug information retrieved"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get debug information");
+            return StatusCode(500, ApiResponse<object>.ErrorResponse($"Failed to get debug info: {ex.Message}"));
+        }
+    }
+
+    /// <summary>
+    /// Send test message directly to queue (bypassing exchange)
+    /// </summary>
+    [HttpPost("test/direct")]
+    public async Task<ActionResult<ApiResponse<TestMessage>>> SendTestMessageDirect([FromBody] SendMessageRequest request)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(request.Content))
+            {
+                return BadRequest(ApiResponse<TestMessage>.ErrorResponse("Content cannot be empty"));
+            }
+
+            // Create test message
+            var message = new TestMessage
+            {
+                Content = request.Content,
+                Metadata = request.Metadata ?? new Dictionary<string, object>()
+            };
+
+            // Send directly to queue using default exchange
+            await _producerService.SendTestMessageDirectAsync(message);
+            
+            _logger.LogInformation("Test message sent DIRECTLY to queue: {MessageId}", message.Id);
+            
+            return Ok(ApiResponse<TestMessage>.SuccessResponse(message, "Test message sent directly to queue"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send test message directly");
+            return StatusCode(500, ApiResponse<TestMessage>.ErrorResponse($"Failed to send direct message: {ex.Message}"));
+        }
+    }
+
+    /// <summary>
+    /// Test RabbitMQ connection and consumer status
+    /// </summary>
+    [HttpGet("connection-test")]
+    public async Task<ActionResult<ApiResponse<object>>> TestConnection()
+    {
+        try
+        {
+            // This will test if RabbitMQ connection is working
+            var connectionTest = new
+            {
+                Message = "Testing RabbitMQ connection...",
+                Timestamp = DateTime.UtcNow,
+                Action = "This endpoint tests basic RabbitMQ connectivity"
+            };
+
+            // Try to declare a test queue to verify connection
+            await _producerService.InitializeTopologyAsync();
+            
+            return Ok(ApiResponse<object>.SuccessResponse(connectionTest, "RabbitMQ connection test successful"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "RabbitMQ connection test failed");
+            return StatusCode(500, ApiResponse<object>.ErrorResponse($"RabbitMQ connection failed: {ex.Message}"));
+        }
+    }
 }

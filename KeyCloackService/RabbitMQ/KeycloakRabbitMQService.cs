@@ -205,41 +205,85 @@ public class KeycloakRabbitMQService : IDisposable
     {
         var channel = await GetChannelAsync(cancellationToken);
         
-        var consumer = new AsyncEventingBasicConsumer(channel);
+        // Use EventingBasicConsumer instead of AsyncEventingBasicConsumer
+        var consumer = new EventingBasicConsumer(channel);
         
-        consumer.Received += async (model, ea) =>
+        _logger?.LogInformation("?? Setting up consumer for queue '{QueueName}' with autoAck: {AutoAck}", queueName, autoAck);
+        
+        consumer.Received += (model, ea) =>
         {
-            try
+            var deliveryTag = ea.DeliveryTag;
+            _logger?.LogInformation("?? Message received from queue '{QueueName}', delivery tag: {DeliveryTag}", queueName, deliveryTag);
+            
+            // Process message in background task to avoid blocking
+            Task.Run(async () =>
             {
-                var body = ea.Body.ToArray();
-                var message = JsonSerializer.Deserialize<T>(body);
-                
-                if (message != null)
+                try
                 {
-                    var success = await onMessage(message);
+                    var body = ea.Body.ToArray();
+                    _logger?.LogInformation("?? Message body length: {BodyLength} bytes", body.Length);
                     
-                    if (!autoAck)
+                    var bodyString = Encoding.UTF8.GetString(body);
+                    _logger?.LogInformation("?? Raw message content: {MessageContent}", bodyString);
+                    
+                    _logger?.LogInformation("?? Starting JSON deserialization to type {MessageType}...", typeof(T).Name);
+                    var message = JsonSerializer.Deserialize<T>(body);
+                    _logger?.LogInformation("? Successfully deserialized message of type {MessageType}", typeof(T).Name);
+                    
+                    if (message != null)
                     {
-                        if (success)
+                        _logger?.LogInformation("?? Calling message handler for queue '{QueueName}'...", queueName);
+                        
+                        var success = await onMessage(message);
+                        
+                        _logger?.LogInformation("? Message handler completed with result: {Success} for delivery tag: {DeliveryTag}", success, deliveryTag);
+                        
+                        if (!autoAck)
                         {
-                            channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false);
+                            if (success)
+                            {
+                                channel.BasicAck(deliveryTag: deliveryTag, multiple: false);
+                                _logger?.LogInformation("? Message ACK sent for delivery tag: {DeliveryTag}", deliveryTag);
+                            }
+                            else
+                            {
+                                channel.BasicNack(deliveryTag: deliveryTag, multiple: false, requeue: true);
+                                _logger?.LogInformation("? Message NACK sent (requeued) for delivery tag: {DeliveryTag}", deliveryTag);
+                            }
                         }
-                        else
+                    }
+                    else
+                    {
+                        _logger?.LogWarning("?? Deserialized message is null for queue '{QueueName}', delivery tag: {DeliveryTag}", queueName, deliveryTag);
+                        if (!autoAck)
                         {
-                            channel.BasicNack(deliveryTag: ea.DeliveryTag, multiple: false, requeue: true);
+                            channel.BasicNack(deliveryTag: deliveryTag, multiple: false, requeue: false);
+                            _logger?.LogInformation("? Message NACK sent (not requeued) for null message, delivery tag: {DeliveryTag}", deliveryTag);
                         }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Error processing message from queue '{QueueName}'", queueName);
-                
-                if (!autoAck)
+                catch (JsonException jsonEx)
                 {
-                    channel.BasicNack(deliveryTag: ea.DeliveryTag, multiple: false, requeue: false);
+                    _logger?.LogError(jsonEx, "?? JSON deserialization error for message from queue '{QueueName}', delivery tag: {DeliveryTag}. Raw content: {RawContent}", 
+                        queueName, deliveryTag, Encoding.UTF8.GetString(ea.Body.ToArray()));
+                    
+                    if (!autoAck)
+                    {
+                        channel.BasicNack(deliveryTag: deliveryTag, multiple: false, requeue: false);
+                        _logger?.LogInformation("? Message NACK sent (not requeued) for JSON error, delivery tag: {DeliveryTag}", deliveryTag);
+                    }
                 }
-            }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "?? Unexpected error processing message from queue '{QueueName}', delivery tag: {DeliveryTag}", queueName, deliveryTag);
+                    
+                    if (!autoAck)
+                    {
+                        channel.BasicNack(deliveryTag: deliveryTag, multiple: false, requeue: false);
+                        _logger?.LogInformation("? Message NACK sent (not requeued) for unexpected error, delivery tag: {DeliveryTag}", deliveryTag);
+                    }
+                }
+            });
         };
 
         var consumerTag = channel.BasicConsume(
@@ -247,8 +291,8 @@ public class KeycloakRabbitMQService : IDisposable
             autoAck: autoAck,
             consumer: consumer);
 
-        _logger?.LogInformation("Started consuming messages from queue '{QueueName}' with consumer tag '{ConsumerTag}'", 
-            queueName, consumerTag);
+        _logger?.LogInformation("?? Started consuming messages from queue '{QueueName}' with consumer tag '{ConsumerTag}' (autoAck: {AutoAck})", 
+            queueName, consumerTag, autoAck);
 
         return consumerTag;
     }
