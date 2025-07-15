@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using KeyCloackService.Models;
 using KeyCloackService.RabbitMQ;
+using KeyCloackService.MassTransit;
 
 namespace KeyCloackService.Extensions;
 
@@ -127,6 +128,101 @@ public static class ServiceCollectionExtensions
         // Register RabbitMQ services as Singleton
         services.AddSingleton<KeycloakRabbitMQConnectionFactory>();
         services.AddSingleton<KeycloakRabbitMQService>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds KeycloakService with MassTransit support for RabbitMQ authentication
+    /// </summary>
+    /// <param name="services">Service collection</param>
+    /// <param name="keycloakConfigSection">Configuration section for Keycloak settings</param>
+    /// <returns>Service collection for chaining</returns>
+    public static IServiceCollection AddKeycloakMassTransit(
+        this IServiceCollection services,
+        string keycloakConfigSection = "Keycloak")
+    {
+        // Register Keycloak configuration
+        services.AddSingleton<KeycloakConfig>(serviceProvider =>
+        {
+            var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+            var section = configuration.GetSection(keycloakConfigSection);
+            
+            var serverUrl = section["ServerUrl"] ?? throw new ArgumentException("Keycloak ServerUrl is required");
+            var realm = section["Realm"] ?? throw new ArgumentException("Keycloak Realm is required");
+            var clientId = section["ClientId"] ?? throw new ArgumentException("Keycloak ClientId is required");
+            
+            var config = new KeycloakConfig
+            {
+                ServerUrl = serverUrl,
+                Realm = realm,
+                ClientId = clientId
+            };
+            
+            section.Bind(config);
+            return config;
+        });
+
+        // Register Keycloak token manager as Singleton
+        services.AddSingleton<KeycloakTokenManager>();
+
+        // Register MassTransit credentials provider
+        services.AddScoped<KeycloakCredentialsProvider>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds KeycloakService with MassTransit support using custom Keycloak configuration
+    /// </summary>
+    /// <param name="services">Service collection</param>
+    /// <param name="keycloakConfig">Keycloak configuration</param>
+    /// <returns>Service collection for chaining</returns>
+    public static IServiceCollection AddKeycloakMassTransit(
+        this IServiceCollection services,
+        KeycloakConfig keycloakConfig)
+    {
+        // Register configuration
+        services.AddSingleton(keycloakConfig);
+
+        // Register Keycloak token manager as Singleton
+        services.AddSingleton<KeycloakTokenManager>();
+
+        // Register MassTransit credentials provider
+        services.AddScoped<KeycloakCredentialsProvider>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds KeycloakService with MassTransit support using configuration action
+    /// </summary>
+    /// <param name="services">Service collection</param>
+    /// <param name="configureKeycloak">Action to configure Keycloak settings</param>
+    /// <returns>Service collection for chaining</returns>
+    public static IServiceCollection AddKeycloakMassTransit(
+        this IServiceCollection services,
+        Action<KeycloakConfig> configureKeycloak)
+    {
+        // Register configuration with action
+        services.AddSingleton<KeycloakConfig>(serviceProvider =>
+        {
+            // Create with minimal required properties, then let the action configure the rest
+            var config = new KeycloakConfig
+            {
+                ServerUrl = "temp",
+                Realm = "temp", 
+                ClientId = "temp"
+            };
+            configureKeycloak(config);
+            return config;
+        });
+
+        // Register Keycloak token manager as Singleton
+        services.AddSingleton<KeycloakTokenManager>();
+
+        // Register MassTransit credentials provider
+        services.AddScoped<KeycloakCredentialsProvider>();
 
         return services;
     }

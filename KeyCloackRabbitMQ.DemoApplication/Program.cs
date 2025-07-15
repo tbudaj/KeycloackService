@@ -1,4 +1,5 @@
 using KeyCloackService.Extensions;
+using KeyCloackService.MassTransit;
 using KeyCloackRabbitMQ.DemoApplication.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -76,12 +77,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             OnAuthenticationFailed = context =>
             {
-                Console.WriteLine($"?? JWT Authentication failed: {context.Exception.Message}");
+                Console.WriteLine($"? JWT Authentication failed: {context.Exception.Message}");
                 return Task.CompletedTask;
             },
             OnTokenValidated = context =>
             {
-                Console.WriteLine($"?? JWT Token validated for user: {context.Principal?.Identity?.Name ?? "Unknown"}");
+                Console.WriteLine($"? JWT Token validated for user: {context.Principal?.Identity?.Name ?? "Unknown"}");
                 return Task.CompletedTask;
             }
         };
@@ -95,6 +96,10 @@ try
     
     // Add KeyCloak and RabbitMQ services with error handling
     builder.Services.AddKeycloakRabbitMQ();
+    
+    // ?? Add MassTransit support for Keycloak
+    builder.Services.AddKeycloakMassTransit();
+    
     builder.Services.AddSingleton<MessageProducerService>();
     builder.Services.AddHostedService<MessageConsumerService>();
 
@@ -116,7 +121,7 @@ catch (Exception ex)
 
 var app = builder.Build();
 
-Console.WriteLine("?? Application built successfully");
+Console.WriteLine("??? Application built successfully");
 
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
@@ -179,6 +184,7 @@ app.Logger.LogInformation("   Controller test: {Url}/api/test", httpUrl);
 app.Logger.LogInformation("?? Swagger UI: {Url}", httpUrl);
 app.Logger.LogInformation("?? Health checks: {Url}/api/health", httpUrl);
 app.Logger.LogInformation("?? Secured endpoints: {Url}/api/secure-messages/*", httpUrl);
+app.Logger.LogInformation("?? MassTransit demo: {Url}/api/masstransit-demo/*", httpUrl);
 
 try
 {
